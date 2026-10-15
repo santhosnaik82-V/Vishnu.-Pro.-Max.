@@ -1,0 +1,64 @@
+name: Build VISHNU PRO MAX APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Check source ZIP
+        run: |
+          if [ ! -f source.zip ]; then
+            echo "ERROR: source.zip not found in repository root."
+            ls -la
+            exit 1
+          fi
+
+      - name: Extract Android project
+        run: |
+          mkdir -p source
+          unzip -q source.zip -d source
+          echo "Files extracted:"
+          find source -maxdepth 4 -type f | head -100
+
+      - name: Find Gradle project
+        id: project
+        run: |
+          PROJECT_DIR="$(find source -type f -name gradlew -print -quit)"
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERROR: No gradlew found in source.zip."
+            exit 1
+          fi
+          PROJECT_DIR="$(dirname "$PROJECT_DIR")"
+          chmod +x "$PROJECT_DIR/gradlew"
+          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Build debug APK
+        run: |
+          cd "${{ steps.project.outputs.dir }}"
+          ./gradlew --no-daemon assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: VISHNU-PRO-MAX-APK
+          path: ${{ steps.project.outputs.dir }}/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
